@@ -15,3 +15,5 @@ class AgentState(TypedDict):
 
     # A crucial addition for long-running servers:
     summary: str
+    next_agent: str
+    download_url: str

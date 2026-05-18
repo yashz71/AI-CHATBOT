@@ -10,8 +10,7 @@ model = ChatOpenAI(
     stream_usage=True,
     max_tokens=None,
     timeout=None,
-    max_retries=2
-)
-tools = [scrape_website]
+    max_retries=2,
 
-scrape_model_with_tools = model.bind_tools(tools)
+)
+

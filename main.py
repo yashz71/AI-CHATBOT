@@ -2,19 +2,19 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 import shutil
+from fastapi.responses import FileResponse
 import os
 import uuid
 from pydantic import BaseModel
-from typing import Optional
-from fastapi.responses import StreamingResponse
+from agent.utils.subgraphs.graph import build_general_subgraph
 from services.multimodal_rag import ingest_pdf_to_pgvector
-import json
 from typing import Optional
+from agent.startup.mcp import initialize_mcp
 
 # LangGraph Imports
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from agent.utils.config import NEON_DATABASE_URL
-from agent.utils.workflow import workflow  # Import your StateGraph
+from agent.utils.workflow import build_workflow  # Import your StateGraph
 
 # --- Global Graph Instance ---
 # We define this globally so the API routes can access the compiled graph
@@ -27,10 +27,18 @@ async def lifespan(app: FastAPI):
     global agent_app
     # 1. Initialize the Async Checkpointer (Persistent Memory)
     # Using 'autocommit=True' is a 2026 requirement for Neon/Postgres
+    deps = await initialize_mcp()
+    subgraph = build_general_subgraph(
+        deps["tool_node"]
+    )
+
+    workflow = build_workflow(
+        subgraph
+    )
+
     async with AsyncPostgresSaver.from_conn_string(NEON_DATABASE_URL) as saver:
         # 2. One-time setup (creates the checkpoint tables in Neon if they don't exist)
         await saver.setup()
-
         # 3. Compile the graph WITH the checkpointer
         agent_app = workflow.compile(checkpointer=saver)
 
@@ -52,48 +60,7 @@ class ChatInput(BaseModel):
 class ChatOutput(BaseModel):
     answer: str
     thread_id: str
-
-
-@app.post("/chat/stream")
-async def chat_stream(payload: ChatInput):
-    # Check if the agent is actually loaded
-    if agent_app is None:
-        raise HTTPException(status_code=503, detail="Agent is still initializing...")
-
-    thread_id = payload.thread_id or str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
-
-    async def event_generator():
-        # Force a small 'yield' to open the connection immediately
-        yield ": connection established\n\n"
-
-        try:
-            # Note: Ensure you are using astream_events correctly on the compiled app
-            async for event in agent_app.astream_events(
-                    {"messages": [("user", payload.message)]},
-                    config,
-                    version="v2"
-            ):
-                kind = event["event"]
-
-                # 1. Catching tokens from the Chat Model
-                if kind == "on_chat_model_stream":
-                    # Sometimes it's event['data']['chunk'].content
-                    # Sometimes it's event['data']['chunk'].text
-                    chunk = event["data"].get("chunk")
-                    if chunk and hasattr(chunk, 'content'):
-                        content = chunk.content
-                        if content:
-                            yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
-
-                # 2. Catching Tool Starts (Tavily/Neon)
-                elif kind == "on_tool_start":
-                    yield f"data: {json.dumps({'type': 'tool', 'content': event['name']})}\n\n"
-
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    download_url: Optional[str] = None
 
 
 # --- The Chat Endpoint ---
@@ -121,29 +88,46 @@ async def chat_with_agent(
             # 🔥 async ingestion (DO NOT block chat)
             result_parsed = await ingest_pdf_to_pgvector(file_path, thread_id)
 
-        parsed_text = "\n\n".join([
-            page.markdown for page in result_parsed.markdown.pages if page.markdown
-        ])
+            parsed_text = "\n\n".join([
+                page.markdown for page in result_parsed.markdown.pages if page.markdown
+            ])
+            input_state = {
+                "messages": [
+                    (
+                        "user",
+                        f"""
+                   User question:
+                   {message}
+    
+                   Document:
+                   {parsed_text}
+                   """
+                    )
+                ]
+            }
+            # 2. Run agent immediately
+            result = await agent_app.ainvoke(input_state, config=config)
+
+            final_answer = result["messages"][-1].content
+
+            return ChatOutput(answer=final_answer, thread_id=thread_id,)
         input_state = {
             "messages": [
                 (
                     "user",
                     f"""
-               User question:
-               {message}
+                           User question:
+                           {message}
 
-               Document:
-               {parsed_text}
-               """
+                           """
                 )
             ]
         }
-        # 2. Run agent immediately
         result = await agent_app.ainvoke(input_state, config=config)
 
         final_answer = result["messages"][-1].content
 
-        return ChatOutput(answer=final_answer, thread_id=thread_id)
+        return ChatOutput(answer=final_answer, thread_id=thread_id, download_url=result.get("download_url"))
 
     except Exception as e:
         print(e)
@@ -215,6 +199,22 @@ async def ingest_document(
         if os.path.exists(file_path):
             os.remove(file_path)
 
+
+EXPORT_DIR = "exports"
+
+
+@app.get("/download/{filename}")
+def download_file(filename: str):
+    file_path = os.path.join(EXPORT_DIR, filename)
+
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 if __name__ == "__main__":
