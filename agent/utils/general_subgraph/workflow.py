@@ -1,11 +1,11 @@
 # agent/workflow.py
 from langgraph.graph import StateGraph, END, START
 
-from agent.utils.nodes import supervisor_router, route_supervisor
+from agent.utils.general_subgraph.nodes import tool_node, should_continue, call_model
 from agent.utils.state import AgentState
 
 
-def build_workflow(general_subgraph, finance_agent):
+def build_finance_agent():
 
     workflow = StateGraph(AgentState)
 
@@ -14,18 +14,13 @@ def build_workflow(general_subgraph, finance_agent):
     # =========================================================
 
     workflow.add_node(
-        "supervisor",
-        supervisor_router
-    )
-
-    workflow.add_node(
         "finance_agent",
-        finance_agent
+        call_model
     )
 
     workflow.add_node(
-        "historical_data_subgraph",
-        general_subgraph
+        "tools",
+        tool_node
     )
 
     # =========================================================
@@ -34,34 +29,28 @@ def build_workflow(general_subgraph, finance_agent):
 
     workflow.add_edge(
         START,
-        "supervisor"
+        "finance_agent"
     )
 
     # =========================================================
-    # SUPERVISOR ROUTING
+    # NORMAL AGENT LOOP
     # =========================================================
 
     workflow.add_conditional_edges(
-        "supervisor",
-        route_supervisor,
+        "finance_agent",
+        should_continue,
         {
-            "finance_agent": "finance_agent",
-
-            "historical_data_subgraph":
-                "historical_data_subgraph",
-            "END": END
-
+            "tools": "tools",
+            END: END
         }
     )
 
-    # =========================================================
-    # SUBGRAPH RETURN
-    # =========================================================
+    workflow.add_edge(
+        "tools",
+        "finance_agent"
+    )
 
-    workflow.add_edge("finance_agent", END)
-    workflow.add_edge("historical_data_subgraph", END)
-
-    return workflow
+    return workflow.compile()
 
 # =========================================================
 # COMPILE

@@ -6,7 +6,8 @@ from fastapi.responses import FileResponse
 import os
 import uuid
 from pydantic import BaseModel
-from agent.utils.subgraphs.graph import build_general_subgraph
+from agent.utils.historical_subgraph.graph import build_general_subgraph
+from agent.utils.general_subgraph.workflow import build_finance_agent
 from services.multimodal_rag import ingest_pdf_to_pgvector
 from typing import Optional
 from agent.startup.mcp import initialize_mcp
@@ -31,9 +32,10 @@ async def lifespan(app: FastAPI):
     subgraph = build_general_subgraph(
         deps["tool_node"]
     )
+    finance_agent = build_finance_agent()
 
     workflow = build_workflow(
-        subgraph
+        subgraph, finance_agent
     )
 
     async with AsyncPostgresSaver.from_conn_string(NEON_DATABASE_URL) as saver:
@@ -96,11 +98,15 @@ async def chat_with_agent(
                     (
                         "user",
                         f"""
-                   User question:
-                   {message}
-    
-                   Document:
-                   {parsed_text}
+                   
+                    <user_question>
+                    {message}
+                    </user_question>
+                    
+                    <document>
+                    {parsed_text}
+                    </document>
+
                    """
                     )
                 ]
@@ -116,9 +122,9 @@ async def chat_with_agent(
                 (
                     "user",
                     f"""
-                           User question:
-                           {message}
-
+                    <user_question>
+                    {message}
+                    </user_question>
                            """
                 )
             ]

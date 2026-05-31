@@ -7,7 +7,7 @@ import os
 from langgraph.graph import END
 from langchain_core.messages import AIMessage
 
-from agent.utils.subgraphs.prompts import agent_prompt
+from agent.utils.historical_subgraph.prompts import agent_prompt
 import agent.startup.mcp as mcp
 
 
@@ -90,14 +90,13 @@ def extract_text(message):
 
     return content
 
-
 def verify_hist_data(state: SubgraphState):
     """
     Verifies whether the MCP historical data tool
     returned a valid DataFrame.
 
     Cases:
-    1. Empty DataFrame:
+    1. Empty/Invalid DataFrame (or JSON Parsing Error):
        - increment retry counter
        - ask model to retry or fail gracefully
 
@@ -113,18 +112,35 @@ def verify_hist_data(state: SubgraphState):
 
     # Get last tool message
     last_message = messages[-1]
-    # Expected:
-    # tool result stored in state["hist_data"]
-    raw = extract_text(last_message)
-    hist = pd.read_json(raw)
     print("last m", last_message)
-    print("histo: ", hist)
-    # =====================================================
-    # CASE 1 -> EMPTY DATAFRAME
-    # =====================================================
 
+    # Expected: tool result stored in state["hist_data"]
+    raw = extract_text(last_message)
+    print("raw:", raw)
+
+    # Initialize empty DataFrame as fallback
+    hist = pd.DataFrame()
+
+    # =====================================================
+    # TRY PARSING THE JSON DATA Safely
+    # =====================================================
+    try:
+        if raw and isinstance(raw, str):
+            # Clean common markdown wrappers if the model injected them
+            clean_raw = raw.strip().strip("").replace("json\n", "", 1)
+            hist = pd.read_json(clean_raw)
+            print("histo parsed successfully: ", hist)
+        else:
+            print("--- INVALID RAW TEXT TYPE PASSED TO READ_JSON ---")
+    except (ValueError, TypeError, Exception) as e:
+        print(f"--- JSON PARSING FAILED: {str(e)} ---")
+        # Leaving hist as an empty DataFrame ensures it naturally triggers Case 1 below
+
+    # =====================================================
+    # CASE 1 -> EMPTY OR INVALID DATAFRAME (Triggered on failure/empty)
+    # =====================================================
     if hist is None or hist.empty:
-        print("--- EMPTY DATAFRAME DETECTED ---")
+        print("--- EMPTY OR INVALID DATAFRAME DETECTED ---")
 
         if retries >= 2:
             return {
@@ -144,7 +160,7 @@ def verify_hist_data(state: SubgraphState):
             "messages": [
                 AIMessage(
                     content=(
-                        "Historical data retrieval failed. "
+                        "Historical data retrieval failed or returned malformed data. "
                         "Retrying data fetch."
                     )
                 )
@@ -156,21 +172,15 @@ def verify_hist_data(state: SubgraphState):
     # =====================================================
     # CASE 2 -> VALID DATAFRAME
     # =====================================================
-
     print("--- VALID DATAFRAME RECEIVED ---")
 
     ticker = state.get("ticker", "asset")
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     EXPORT_DIR = "exports"
     os.makedirs(EXPORT_DIR, exist_ok=True)
 
-    filename = (
-        f"{ticker}_historical_data_{timestamp}.xlsx"
-    )
-
-    # Full file path
+    filename = f"{ticker}_historical_data_{timestamp}.xlsx"
     filepath = os.path.join(EXPORT_DIR, filename)
 
     # Export Excel file
@@ -179,10 +189,7 @@ def verify_hist_data(state: SubgraphState):
         index=False
     )
     BASE_URL = "http://localhost:8000"
-
-    download_url = (
-        f"{BASE_URL}/download/{filename}"
-    )
+    download_url = f"{BASE_URL}/download/{filename}"
     print(f"--- EXCEL FILE CREATED: {filename} ---")
 
     return {
@@ -193,7 +200,7 @@ def verify_hist_data(state: SubgraphState):
         "messages": [
             AIMessage(
                 content=(
-                    f"Historical data successfully "
+                    f"Historical data successfully loaded. "
                     f"Download: {download_url}"
                 )
             )

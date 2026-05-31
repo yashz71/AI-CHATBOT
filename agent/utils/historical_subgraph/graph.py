@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph, START, END
 
 from agent.utils.state import AgentState
-from agent.utils.subgraphs.nodes import (
+from agent.utils.historical_subgraph.nodes import (
     call_model,
     should_continue,
     verify_hist_data,
