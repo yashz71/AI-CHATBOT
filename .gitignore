@@ -22,7 +22,7 @@ venv.bak/
 .pytest_cache/
 .coverage
 htmlcov/
-
+exports/
 # --- FastAPI / Uvicorn ---
 # If you use a custom log file
 *.log
