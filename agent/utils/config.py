@@ -9,7 +9,7 @@ load_dotenv(override=True)
 base_url = os.getenv("BASE_URL")
 api_key = os.getenv("API_KEY")
 base_url_em = os.getenv("BASE_URL_EM")
-
+mcp_server_url = os.getenv("MCP_SERVER_URL")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 NEON_DATABASE_URL = os.getenv("NEON_DATABASE_URL")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "wealth_management_2026")

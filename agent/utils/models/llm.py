@@ -1,6 +1,5 @@
 from langchain_openai import ChatOpenAI
 from agent.utils.config import base_url, api_key
-from agent.utils.tools.firecrawl import scrape_website
 
 model = ChatOpenAI(
     model="gpt-4o-mini",
@@ -11,6 +10,5 @@ model = ChatOpenAI(
     max_tokens=None,
     timeout=None,
     max_retries=2,
-
 )
 

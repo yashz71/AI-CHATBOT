@@ -3,12 +3,12 @@
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import ToolNode
 from agent.utils.models.llm import model
-
+from agent.utils.config import mcp_server_url
 mcp_client = MultiServerMCPClient(
     {
         "mcp_server": {
             "transport": "streamable_http",
-            "url": "http://localhost:24000/mcp",
+            "url": mcp_server_url,
         }
     }
 )
