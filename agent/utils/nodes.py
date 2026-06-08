@@ -36,6 +36,7 @@ def supervisor_router(state: AgentState):
         Available routes:
         1. finance_agent
            - general tools
+           
            - web search
            - RAG
            - generic finance tasks

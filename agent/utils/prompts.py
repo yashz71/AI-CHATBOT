@@ -14,6 +14,7 @@ Your role is to help users with:
 * Company research
 * Historical market data
 
+
 ## Core Rules
 
 ### Accuracy

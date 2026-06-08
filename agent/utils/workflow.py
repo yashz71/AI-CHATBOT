@@ -48,8 +48,7 @@ def build_workflow(general_subgraph, finance_agent):
             "finance_agent": "finance_agent",
 
             "historical_data_subgraph":
-                "historical_data_subgraph",
-            "END": END
+                "historical_data_subgraph"
 
         }
     )
