@@ -6,7 +6,7 @@ from langgraph.graph.message import add_messages
 import os
 from langgraph.graph import END
 from langchain_core.messages import AIMessage
-
+from agent.utils.config import FAST_API_URL
 from agent.utils.historical_subgraph.prompts import agent_prompt
 import agent.startup.mcp as mcp
 
@@ -188,7 +188,7 @@ def verify_hist_data(state: SubgraphState):
         filepath,
         index=False
     )
-    BASE_URL = "http://localhost:8000"
+    BASE_URL = FAST_API_URL
     download_url = f"{BASE_URL}/download/{filename}"
     print(f"--- EXCEL FILE CREATED: {filename} ---")
 
