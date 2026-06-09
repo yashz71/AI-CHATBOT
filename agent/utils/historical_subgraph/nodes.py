@@ -191,6 +191,7 @@ def verify_hist_data(state: SubgraphState):
     BASE_URL = FAST_API_URL
     download_url = f"{BASE_URL}/download/{filename}"
     print(f"--- EXCEL FILE CREATED: {filename} ---")
+    print(f"testing in prod url: {dowload_url} base_url: {BASE_URL}")
 
     return {
         "excel_file": filename,
