@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
     workflow = build_workflow(
         subgraph, finance_agent
     )
-
-    async with AsyncPostgresSaver.from_conn_string(NEON_DATABASE_URL) as saver:
+    langgraph_db_url = NEON_DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
+    async with AsyncPostgresSaver.from_conn_string(langgraph_db_url) as saver:
         # 2. One-time setup (creates the checkpoint tables in Neon if they don't exist)
         await saver.setup()
         # 3. Compile the graph WITH the checkpointer
