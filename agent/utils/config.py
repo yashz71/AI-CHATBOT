@@ -14,7 +14,7 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 NEON_DATABASE_URL = os.getenv("NEON_DATABASE_URL")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "wealth_management_2026")
 FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
-
+FAST_API_URL = os.getenv("FASTAPI_URL")
 # Fail-safe: Stop the server immediately if critical keys are missing
 if not NEON_DATABASE_URL:
     raise ValueError("Critical configuration is missing! Check your .env file.")
